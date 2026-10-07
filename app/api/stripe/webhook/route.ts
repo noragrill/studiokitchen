@@ -80,7 +80,7 @@ export async function POST(request: Request) {
 
   const { error: orderError } = await supabaseAdmin
     .from('orders')
-    .update({ status: 'paid', payment_status: 'paid', paid_at: paidAt })
+    .update({ status: 'paid', payment_status: 'paid' })
     .eq('id', orderId)
     .neq('status', 'paid')
 
