@@ -1,0 +1,4 @@
+import { NextResponse } from 'next/server'
+import { supabaseAdmin } from '@/lib/supabase-admin'
+const next: Record<string,string> = { paid:'accepted', accepted:'preparing', preparing:'ready' }
+export async function POST(request: Request) { if (request.headers.get('x-prototype-staff') !== 'development-staff') return NextResponse.json({error:'Development staff header required.'},{status:401}); const { orderId } = await request.json(); const { data: order } = await supabaseAdmin.from('orders').select('id,status').eq('id',orderId).single(); if(!order || !next[order.status]) return NextResponse.json({error:'Invalid or unavailable order transition.'},{status:409}); const { error } = await supabaseAdmin.from('orders').update({status:next[order.status]}).eq('id',orderId).eq('status',order.status); if(error)return NextResponse.json({error:error.message},{status:500}); return NextResponse.json({ok:true,status:next[order.status]}) }
