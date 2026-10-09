@@ -2,7 +2,7 @@
 -- This migration creates schema only: it inserts no brand, location, menu, price, or credential data.
 
 create schema if not exists studio_kitchen_private;
-revoke all on schema studio_kitchen_private from public, anon;
+revoke all on schema studio_kitchen_private from public, anon, authenticated;
 grant usage on schema studio_kitchen_private to authenticated, service_role;
 
 create table public.brands (
@@ -245,7 +245,7 @@ create table public.brand_members (
 
 create index brand_locations_location_idx on public.brand_locations (location_id, brand_id);
 create index menus_brand_location_active_idx on public.menus (brand_id, location_id, is_active);
-create index menu_categories_brand_menu_sort_idx on public.menu_categories (brand_id, menu_id, sort_order);
+create index menu_categories_menu_brand_sort_idx on public.menu_categories (menu_id, brand_id, sort_order);
 create index menu_items_category_fk_idx on public.menu_items (category_id, menu_id, brand_id);
 create index menu_items_brand_menu_category_sort_idx on public.menu_items (brand_id, menu_id, category_id, sort_order);
 create index customers_brand_created_idx on public.customers (brand_id, created_at desc);
@@ -256,19 +256,20 @@ create index collection_slots_brand_location_start_idx
 create index collection_holds_slot_status_expiry_idx
   on public.collection_holds (slot_id, status, expires_at);
 create index orders_kds_queue_idx on public.orders (brand_id, location_id, status, created_at);
-create index orders_brand_menu_idx on public.orders (brand_id, menu_id);
+create index orders_menu_fk_idx on public.orders (menu_id, brand_id, location_id, currency_code);
 create index orders_collection_slot_fk_idx on public.orders (collection_slot_id, brand_id, location_id);
 create index orders_customer_created_idx on public.orders (brand_id, customer_id, created_at desc)
   where customer_id is not null;
 create index orders_customer_fk_idx on public.orders (customer_id, brand_id) where customer_id is not null;
-create index order_items_order_idx on public.order_items (brand_id, order_id);
+create index order_items_order_idx on public.order_items (order_id, brand_id, menu_id);
 create index order_items_menu_item_idx on public.order_items (menu_item_id, brand_id, menu_id);
 create index payments_order_created_idx on public.payments (brand_id, order_id, created_at desc);
+create index payments_order_fk_idx on public.payments (order_id, brand_id, currency_code);
 create unique index payments_provider_reference_idx
   on public.payments (provider, provider_payment_id) where provider_payment_id is not null;
-create index collection_codes_order_idx on public.collection_codes (brand_id, order_id);
+create index collection_codes_order_idx on public.collection_codes (order_id, brand_id);
 create index order_status_history_order_created_idx
-  on public.order_status_history (brand_id, order_id, created_at);
+  on public.order_status_history (order_id, brand_id, created_at);
 create index order_status_history_changed_by_idx
   on public.order_status_history (changed_by) where changed_by is not null;
 create index stripe_webhook_events_processing_idx
@@ -366,7 +367,7 @@ create policy menus_public_read_published
   on public.menus for select to anon, authenticated
   using (
     is_active
-    and published_at is not null
+    and published_at <= statement_timestamp()
     and exists (
       select 1 from public.brand_locations as bl
       where bl.brand_id = menus.brand_id
